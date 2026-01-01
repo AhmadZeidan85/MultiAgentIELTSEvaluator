@@ -5,22 +5,33 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 import os
 
 VECTOR_DB_PATH = "ielts_vectordb"
+PDF_PATH = "data/ielts_band_descriptors.pdf"
 
-def build_vectordb(pdf_path="data/ielts_band_descriptors.pdf"):
+def build_vectordb():
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
     if os.path.exists(VECTOR_DB_PATH):
-        embeddings = HuggingFaceEmbeddings("sentence-transformers/all-MiniLM-L6-v2")
-        return FAISS.load_local(VECTOR_DB_PATH, embeddings, allow_dangerous_deserialization=True)
+        return FAISS.load_local(
+            VECTOR_DB_PATH,
+            embeddings,
+            allow_dangerous_deserialization=True,
+        )
 
-    loader = PyPDFLoader(pdf_path)
+    loader = PyPDFLoader(PDF_PATH)
     docs = loader.load()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=100,
+    )
     chunks = splitter.split_documents(docs)
 
-    embeddings = HuggingFaceEmbeddings("sentence-transformers/all-MiniLM-L6-v2")
     vectordb = FAISS.from_documents(chunks, embeddings)
     vectordb.save_local(VECTOR_DB_PATH)
     return vectordb
 
-def retrieve(vectordb, essay, criterion):
-    query = f"{criterion} IELTS band descriptor guidance"
-    return vectordb.similarity_search(query, k=3)
+def retrieve(vectordb, criterion, k=3):
+    query = f"IELTS {criterion} band descriptors"
+    return vectordb.similarity_search(query, k=k)

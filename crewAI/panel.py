@@ -1,70 +1,140 @@
-import yaml, json
+import json
+import re
+import yaml
 from crewai import Agent, Task, Crew
-from crewAI.rag import retrieve
-from crewAI.confidence import calculate_confidence
+from crew.llm import call_llm
+from crew.rag import retrieve
+
+# ---------- Utilities ----------
 
 def load_yaml(path):
-    with open(path) as f:
+    with open(path, "r") as f:
         return yaml.safe_load(f)
 
-agents_cfg = load_yaml("config/agents.yaml")
-tasks_cfg = load_yaml("config/tasks.yaml")
+def extract_json(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise ValueError("No JSON found")
+        return json.loads(match.group())
 
-def run_panel(essay, vectordb):
-    agents = {
-        "task": Agent(**agents_cfg["task_examiner"]),
-        "coherence": Agent(**agents_cfg["coherence_examiner"]),
-        "lexical": Agent(**agents_cfg["lexical_examiner"]),
-        "grammar": Agent(**agents_cfg["grammar_examiner"]),
+AGENTS = load_yaml("config/agents.yaml")
+TASKS = load_yaml("config/tasks.yaml")
+
+# ---------- Agents ----------
+
+def examiner_agent(key):
+    cfg = AGENTS[key]
+    return Agent(
+        role=cfg["role"],
+        goal=cfg["goal"],
+        backstory=cfg["backstory"],
+        llm=call_llm,
+        verbose=True,
+    )
+
+def chief_examiner_agent():
+    cfg = AGENTS["chief_examiner"]
+    return Agent(
+        role=cfg["role"],
+        goal=cfg["goal"],
+        backstory=cfg["backstory"],
+        llm=call_llm,
+        verbose=True,
+    )
+
+# ---------- Main Pipeline ----------
+
+def run_examiner_panel(essay, vectordb):
+    results = {}
+
+    criteria_map = {
+        "task_achievement_examiner": "Task Achievement",
+        "coherence_cohesion_examiner": "Coherence & Cohesion",
+        "lexical_resource_examiner": "Lexical Resource",
+        "grammar_examiner": "Grammar",
     }
 
-    tasks = []
-    for key, agent in agents.items():
-        docs = retrieve(vectordb, essay, key)
-        rubric = "\n".join(d.page_content for d in docs)
+    # ---- Criterion Examiners ----
+    for agent_key, criterion in criteria_map.items():
+        rubric_chunks = retrieve(vectordb, criterion)
+        rubric_text = "\n".join(c.page_content for c in rubric_chunks)
 
-        tasks.append(Task(
+        agent = examiner_agent(agent_key)
+
+        task = Task(
             description=f"""
-{tasks_cfg[f"{key}_task"]["description"]}
+Evaluate the IELTS essay for {criterion}.
 
 Rubric:
-{rubric}
+{rubric_text}
 
+STRICT OUTPUT RULES:
+- Return ONLY valid JSON
+- No text outside JSON
+
+JSON FORMAT:
+{{
+  "criterion": "{criterion}",
+  "band": number,
+  "confidence": number,
+  "strengths": ["string"],
+  "weaknesses": ["string"],
+  "improvement_tips": ["string"],
+  "rubric_references": ["string"]
+}}
 Essay:
 {essay}
 """,
+            expected_output="JSON only",
             agent=agent,
-            expected_output="JSON"
-        ))
+        )
 
-    crew = Crew(agents=list(agents.values()), tasks=tasks, process="parallel")
-    results = [json.loads(r) for r in crew.kickoff()]
+        crew = Crew(agents=[agent], tasks=[task])
+        raw = crew.kickoff()
+        results[criterion] = extract_json(raw)
 
-    # Chief Examiner
-    chief_agent = Agent(**agents_cfg["chief_examiner"])
+    # ---- Chief Examiner ----
+    chief_agent = chief_examiner_agent()
+    examiner_json = json.dumps(results, indent=2)
+
     chief_task = Task(
         description=f"""
-{tasks_cfg['chief_examiner_task']['description']}
+You are the IELTS Chief Examiner.
 
-Criterion Results:
-{json.dumps(results, indent=2)}
+Examiner reports (JSON):
+{examiner_json}
+
+RULES:
+- Average bands
+- Round to nearest 0.5
+- Return ONLY JSON
+
+JSON FORMAT:
+{{
+  "overall_band": number,
+  "confidence": number,
+  "final_strengths": ["string"],
+  "final_weaknesses": ["string"],
+  "top_improvements": ["string"],
+  "band_justification": "string"
+}}
 """,
+        expected_output="JSON only",
         agent=chief_agent,
-        expected_output="JSON"
     )
 
-    final = Crew(agents=[chief_agent], tasks=[chief_task]).kickoff()
-    chief_output = json.loads(final[0])
-
-    # Compute Confidence
-    confidence_pct, confidence_label = calculate_confidence(
-        results,
-        chief_output["adjustments_made"] is not None
+    chief_crew = Crew(
+        agents=[chief_agent],
+        tasks=[chief_task],
     )
-    chief_output["confidence_score"] = confidence_pct
-    chief_output["confidence_label"] = confidence_label
+
+    final_raw = chief_crew.kickoff()
+    final_report = extract_json(final_raw)
 
     return {
         "criteria": results,
-        "chief_examiner": chief_output
+        "final_report": final_report,
     }

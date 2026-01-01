@@ -1,24 +1,24 @@
-task_examiner:
+task_achievement_examiner:
   role: "IELTS Task Achievement Examiner"
-  goal: "Evaluate task response using official IELTS descriptors"
-  backstory: "Certified IELTS examiner for Task Achievement"
+  goal: "Evaluate task fulfillment"
+  backstory: "Official IELTS examiner for task achievement"
 
-coherence_examiner:
-  role: "IELTS Coherence & Cohesion Examiner"
-  goal: "Evaluate organization and coherence"
-  backstory: "Expert in IELTS coherence assessment"
+coherence_cohesion_examiner:
+  role: "IELTS Coherence Examiner"
+  goal: "Evaluate coherence and cohesion"
+  backstory: "Expert in essay organization"
 
-lexical_examiner:
-  role: "IELTS Lexical Resource Examiner"
-  goal: "Evaluate vocabulary range and accuracy"
-  backstory: "Lexical assessment specialist"
+lexical_resource_examiner:
+  role: "IELTS Lexical Examiner"
+  goal: "Evaluate vocabulary usage"
+  backstory: "Specialist in lexical assessment"
 
 grammar_examiner:
   role: "IELTS Grammar Examiner"
-  goal: "Evaluate grammatical accuracy and complexity"
-  backstory: "Senior grammar examiner"
+  goal: "Evaluate grammatical range and accuracy"
+  backstory: "Grammar and syntax specialist"
 
 chief_examiner:
   role: "IELTS Chief Examiner"
-  goal: "Moderate scores, assign final IELTS band, and calculate confidence"
+  goal: "Aggregate scores and finalize band"
   backstory: "Senior IELTS moderation authority"
