@@ -1,0 +1,43 @@
+task_task:
+  description: |
+    Evaluate Task Achievement.
+    Include strengths, weaknesses, and improvement tips.
+    Return JSON:
+    {
+      "criterion": "Task Achievement",
+      "band": number,
+      "strengths": string,
+      "weaknesses": string,
+      "improvement_tips": string
+    }
+
+coherence_task:
+  description: |
+    Evaluate Coherence and Cohesion.
+    Include strengths, weaknesses, and improvement tips.
+    Return JSON.
+
+lexical_task:
+  description: |
+    Evaluate Lexical Resource.
+    Include strengths, weaknesses, and improvement tips.
+    Return JSON.
+
+grammar_task:
+  description: |
+    Evaluate Grammar Range and Accuracy.
+    Include strengths, weaknesses, and improvement tips.
+    Return JSON.
+
+chief_examiner_task:
+  description: |
+    Review all criterion scores, moderate final band, compute confidence,
+    and provide moderation notes.
+    Return JSON:
+    {
+      "final_band": number,
+      "confidence_score": number,
+      "confidence_label": "Very High | High | Medium | Low",
+      "moderation_notes": string,
+      "adjustments_made": string | null
+    }
